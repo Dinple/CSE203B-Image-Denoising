@@ -108,6 +108,7 @@ if __name__ == "__main__":
     plt.subplot(313)
     plt.imshow(salt, cmap ='gray')
     plt.show()
+    # plt.savefig('experiment-result/salt-edgeGradient.png')
 
     plt.subplot(311)
     plt.imshow(source, cmap ='gray')
@@ -115,5 +116,5 @@ if __name__ == "__main__":
     plt.imshow(gaussian_res, cmap ='gray')
     plt.subplot(313)
     plt.imshow(gaussian, cmap ='gray')
-
     plt.show()
+    # plt.savefig('experiment-result/gaussian-edgeGradient.png')
