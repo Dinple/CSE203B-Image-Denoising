@@ -6,8 +6,18 @@ import numpy as np
 
 #input: source image(hxw)
 #output: denoised image(hxw)
+def edgeDetect(img, thre1=200, thre2=400):
+    edges = cv2.Canny(img, thre1, thre2)
+    plt.subplot(121),plt.imshow(img,cmap = 'gray')
+    plt.title('Original Image'), plt.xticks([]), plt.yticks([])
+    plt.subplot(122),plt.imshow(edges,cmap = 'gray')
+    plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
+    plt.show()
+    return edges
 
-def denoise(img, l=1):
+#input: source image(hxw)
+#output: denoised image(hxw)
+def denoise_preserve_edge(img, l=1, thre1=200, thre2=400):
     h, w = img.shape
     var = cp.Variable((h, w))
     
@@ -19,11 +29,54 @@ def denoise(img, l=1):
     grady = (var[1:, :] - var[:-1, :]) / 2
     obj2 = cp.sum_squares(gradx) + cp.sum_squares(grady)
 
+    #constraints edge
+    edgesDetect = edgeDetect(img, thre1, thre2) / 255
+    edgesVal = cp.multiply(img, edgesDetect)
+    edgesVar = cp.multiply(var, edgesDetect)
+    constraints = [edgesVar == edgesVal]
+
     #obj
     obj = obj1 + l * obj2
 
     #problem
-    prob = cp.Problem(cp.Minimize(obj), [])
+    prob = cp.Problem(cp.Minimize(obj), constraints)
+    prob.solve()
+    res = var.value.astype(np.uint8)
+
+    return res
+
+
+#input: source image(hxw)
+#output: denoised image(hxw)
+def denoise_preserve_edgeGrad(img, l=1, thre1=200, thre2=400):
+    h, w = img.shape
+    var = cp.Variable((h, w))
+    
+    #fidelity term
+    obj1 = cp.sum_squares(var - img)
+
+    #smooth term
+    gradx = (var[:, 1:] - var[:, :-1]) / 2
+    grady = (var[1:, :] - var[:-1, :]) / 2
+    obj2 = cp.sum_squares(gradx) + cp.sum_squares(grady)
+
+    #constraints: edge gradient
+    edgesDetect = edgeDetect(img, thre1, thre2) / 255
+    imgGradx = (img[:, 1:] - img[:, :-1]) / 2
+    imgGrady = (var[1:, :] - var[:-1, :]) / 2
+    
+    edgesGradxVal = cp.multiply(imgGradx, edgesDetect[:, :-1])
+    edgesGradyVal = cp.multiply(imgGrady, edgesDetect[:-1, :])
+    edgesGradxVar = cp.multiply(gradx, edgesDetect[:, :-1])
+    edgesGradyVar = cp.multiply(grady, edgesDetect[:-1, :])
+
+    constraints = [edgesGradxVar == edgesGradxVal, edgesGradyVar == edgesGradyVal]
+
+    #obj
+    obj = obj1 + l * obj2
+
+    #problem
+    prob = cp.Problem(cp.Minimize(obj), constraints)
     prob.solve()
     res = var.value.astype(np.uint8)
 
@@ -36,8 +89,8 @@ if __name__ == "__main__":
     salt = cv2.imread(os.path.join("salt", img_name), cv2.IMREAD_GRAYSCALE)
     gaussian = cv2.imread(os.path.join("gaussian", img_name), cv2.IMREAD_GRAYSCALE)
 
-    salt_res = denoise(salt, l)
-    gaussian_res = denoise(gaussian, l)
+    salt_res = denoise_preserve_edgeGrad(salt, l)
+    gaussian_res = denoise_preserve_edgeGrad(gaussian, l)
 
     salt_dif = np.sum((source - salt) ** 2) ** 0.5
     salt_dif_res = np.sum((source - salt_res) ** 2) ** 0.5
